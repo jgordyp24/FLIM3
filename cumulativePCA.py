@@ -1,95 +1,78 @@
+# my_module.py
+
+__version__ = "1.1.0"
+
 import numpy as np
 from numpy import linalg as LA
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
-from matplotlib import animation
-from PIL import Image
-import os
-import itertools
-import threading
-import time
-import sys
 
-
-class cumulativePCA:
+class CumulativePCA:
 	def __init__(self, images):
 		self.images = images
-		self.numImgs, self.ydim, self.xdim = np.shape(images)
+		self.num_imgs, self.y_dim, self.x_dim = np.shape(images)
 		self.singular_values = None
 
-
-	def removeDCoffset(self, k_size, N):
-		'''k_size	--	tuple (x,y) Kernal idecies
-			N 	--	integer number of last images used in DC noise reduction'''
-
+	def remove_dc_offset(self, k_size, N):
 		print("Reducing DC offset")
 		k_x = np.arange(k_size[0])
 		k_y = np.arange(k_size[1])
 
-		lastIMGs = self.images[-N:]
+		last_imgs = self.images[-N:]
 
 		I = []
-		for img in lastIMGs:
+		for img in last_imgs:
 			for ky in k_y:
 				for kx in k_x:
 					I.append(img[ky][kx])
-		
-		DC_off = np.average(I)
 
-		DC_corrected = []
+		dc_off = np.average(I)
+
+		dc_corrected = []
 		for img in self.images:
-			DC_corrected.append(img - 10+0*DC_off)
+			dc_corrected.append(img - 10 + 0 * dc_off)
 
-		self.images = DC_corrected
+		self.images = dc_corrected
 
-		return None
-
-
-	#Noise correction procedure
-	def NoiseCorrection(self):
-		'''Noise-Correction Procedure (NCP) Each 
-		image is divided by the square root of its 
-		average intensity
-		'''
-
+	def noise_correction(self):
 		print("Reducing Poisson's noise")
-
-		NCIs = [] # list for noise corrected images
+		NCIs = []  # list for noise corrected images
 		for img in self.images:
 			avg = np.mean(img)
-			NCIs.append(img/np.sqrt(avg))
+			NCIs.append(img / np.sqrt(avg + 1e-8))  # Adding a small epsilon (1e-8) for stability
 
 		self.images = NCIs
-
 		return None
 
-	def getPCs(self, PCs):
 
-		# rowHeight = self.ydim * self.xdim
-		# X = np.zeros((self.numImgs, rowHeight))
-		
-		print("Extracting {} Principle Component(s)".format(PCs))
+	def get_pcs(self, num_pcs):
+		print(f"Extracting {num_pcs} Principal Component(s)")
 
-		columnHeight = self.ydim * self.xdim
+		column_height = self.y_dim * self.x_dim
+		X = np.zeros((column_height, self.num_imgs))
 
-
-		X = np.zeros((columnHeight, self.numImgs))
 		for i, img in tqdm(enumerate(self.images), total=len(self.images), desc="Shaping data matrix"):
-			X[:,i] = img.flatten()
-		# for i, img in enumerate(self.images):
-		# 	X[i,:] = img.flatten()		
+			X[:, i] = img.flatten()
 
 		print("\nData matrix shape:", np.shape(X))
 
 		print("Standardization in progress...")
 		std_scaler = StandardScaler()
 		scaled_df = std_scaler.fit_transform(X)
-		print("Standardization complete.")
+
+		print("Checking for NaN or infinity values...")
+		print("NaNs: ", np.isnan(scaled_df).any())
+		print("Infs: ", np.isinf(scaled_df).any())
+
+		# Replace NaN or infinity values with zeros or another appropriate value
+		scaled_df = np.nan_to_num(scaled_df, nan=0.0, posinf=0.0, neginf=0.0)
+
+		print("Standardization complete.\n")
 
 		print("PCA in progress...")
-		pca = PCA(n_components=PCs)
+		pca = PCA(n_components=num_pcs)
 		pca.fit_transform(scaled_df)
 		print("PCA complete.")
 
@@ -97,47 +80,25 @@ class cumulativePCA:
 		self.singular_values = pca.singular_values_
 		print("Done.")
 
-
 		return pca.components_, pca.mean_
 
 
-	# def getPCs(self, PCs):
-		
-	# 	rowHeight = self.ydim * self.xdim
-	# 	X = np.zeros((self.numImgs, rowHeight))
-	# 	print("Shaping data matrix")
-	# 	for i, img in enumerate(self.images):
-	# 		X[i,:] = img.flatten()
-
-	# 	Xavg = np.mean(X, axis=1)
-
-	# 	B = X #- np.tile(Xavg, (self.ydim * self.xdim, 1)).T
-
-	# 	print("Running PCA on images...")
-	# 	pca = PCA(n_components=PCs)
-	# 	pca.fit(B)
-
-	# 	components = pca.fit_transform(B)
-	# 	# image_recon = pca.inverse_transform(components)
-
-	# 	return components
-
-
 	def decomposition(self):
-		'''We just doing SVD which is the bedrock of PCA'''
-
-		columnHeight = self.ydim * self.xdim
-
-		X = np.zeros((columnHeight, self.numImgs))
-		for i, img in enumerate(self.images):
-			X[:,i] = img.flatten()
-
 		print("Performing decomposition...")
 
-		U, S, VT = LA.svd(X, full_matrices=False)
-		S_diag = np.diag(S)
+		column_height = self.y_dim * self.x_dim
+		X = np.zeros((column_height, self.num_imgs))
 
-		print("U, Sigma, V.T matrices calculated.")
+		for i, img in enumerate(self.images):
+			X[:, i] = img.flatten()
+
+		try:
+			U, S, VT = LA.svd(X, full_matrices=False)
+			S_diag = np.diag(S)
+			print("U, Sigma, V.T matrices calculated.")
+		except np.linalg.LinAlgError as e:
+			print(f"SVD did not converge. Error: {e}")
+			U, S_diag, VT = None, None, None
 
 		return U, S_diag, VT
 
@@ -150,22 +111,23 @@ class cumulativePCA:
 
 		plt.figure()
 		plt.semilogy(S)
-		if r!=None:
+		if r is not None:
 			plt.semilogy(S[:r], c="red")
 		plt.title("Singular Values")
 		plt.xlabel("PCs")
 		plt.show()
 
-
-	def PC_ExplainedVar_plot(self, Sigma, r=None):
+	def pc_explained_var_plot(self, Sigma, r=None):
 		S = np.diag(Sigma)
 
 		plt.figure(figsize=(10, 4))
-		plt.plot(np.cumsum(S)/np.sum(S)*100)
-		if r!=None:
-			plt.plot(np.cumsum(S[:r])/np.sum(S[:r])*100)
+		plt.plot(np.cumsum(S) / np.sum(S) * 100)
+		if r is not None:
+			plt.plot(np.cumsum(S[:r]) / np.sum(S[:r]) * 100)
 		plt.title("Singular Values: Cumulative Sum")
 		plt.xlabel("PC")
-		plt.ylabel("Varience")
+		plt.ylabel("Variance")
 		plt.show()
+
+
 

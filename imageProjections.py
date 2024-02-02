@@ -1,10 +1,14 @@
+# my_module.py
+
+__version__ = "1.1.0"
+
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from PIL import Image
 from numpy import random
 import os
-from DataLoader import dataLoader
+from DataLoader import data_loader
 import pandas as pd
 import sys
 
@@ -18,7 +22,7 @@ def load_training_file_names(file_path="metadata/TrainingFileNames.txt"):
 	return np.array([name for name in content.split('\n') if name])
 
 def load_testing_data(path, num_time_bins, excluded_names):
-	IMG, cell_names = dataLoader(path, cutoff=num_time_bins, notTheseNames=excluded_names)
+	IMG, cell_names = data_loader(path, cutoff=num_time_bins, not_these_names=excluded_names)
 	return np.array(IMG), np.array(cell_names)
 
 def save_testing_file_names(names, filename="metadata/TestingFileNames.txt"):
