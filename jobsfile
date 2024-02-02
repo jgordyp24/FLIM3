@@ -1,0 +1,4 @@
+python3 PC_extract.py
+python3 imageProjections.py
+open figures/PCs/PC_plots.png
+open figures/projections/PC1_imgRecon.png
